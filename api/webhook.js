@@ -10,52 +10,63 @@ const redis = Redis.fromEnv();
 
 export default async function handler(req, res) {
     const body = req.body;
-
+    
     // Extract user ID
-    const fromUser = body?.message?.from?.id;
-
+    const fromUser = body?.message?.from?.id?.toString();
+    
     // Reject all users except you
-    if (fromUser && fromUser != ALLOWED_USER_ID) {
+    if (fromUser && fromUser !== ALLOWED_USER_ID) {
         return res.status(200).send("Unauthorized");
     }
-
+    
     // On /start command
     if (body?.message?.text === "/start") {
-        await sendMsg(fromUser, "Bot Activated Nigga 😎 I'm watching your JSON file.");
+        await sendMsg(fromUser, "Bot Activated 😎 I'm watching your JSON file.");
         return res.status(200).send("ok");
     }
 
+    // On /check command - manually trigger a check
+    if (body?.message?.text === "/check") {
+        await checkForNewEntry();
+        return res.status(200).send("ok");
+    }
+    
+    res.status(200).send("ok");
+}
+
+async function checkForNewEntry() {
     // Fetch the JSON file
     let json;
     try {
-        json = await fetch(JSON_URL).then(r => r.json());
+        const response = await fetch(JSON_URL);
+        json = await response.json();
     } catch (err) {
-        await sendMsg(ALLOWED_USER_ID, "❌ Error fetching JSON URL");
-        return res.status(500).send("fetch-error");
+        await sendMsg(ALLOWED_USER_ID, "❌ Error fetching JSON URL: " + err.message);
+        return;
     }
-
+    
     if (!Array.isArray(json) || json.length === 0) {
         await sendMsg(ALLOWED_USER_ID, "⚠️ JSON returned empty or invalid format.");
-        return res.status(200).send("invalid-json");
+        return;
     }
-
+    
     // Get latest entry
     const latest = json[json.length - 1];
     const latestId = latest._id;
-
+    
     // Load stored last-seen ID
     const lastSeen = await redis.get("last_seen_id");
-
+    
     // First-time setup: store ID, don't send message
     if (!lastSeen) {
         await redis.set("last_seen_id", latestId);
-        return res.status(200).send("initialized");
+        await sendMsg(ALLOWED_USER_ID, "✅ Bot initialized. Now monitoring for new entries.");
+        return;
     }
-
+    
     // If new entry appears
     if (latestId !== lastSeen) {
         await redis.set("last_seen_id", latestId);
-
         const msg =
 `🔥 NEW ENTRY DETECTED
 -------------------------
@@ -66,11 +77,9 @@ Created: ${latest.createdAt}
 ID: ${latest._id}
 -------------------------
 (update monitored successfully)`;
-
+        
         await sendMsg(ALLOWED_USER_ID, msg);
     }
-
-    res.status(200).send("ok");
 }
 
 async function sendMsg(chatId, text) {
