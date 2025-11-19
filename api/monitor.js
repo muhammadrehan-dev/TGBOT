@@ -16,10 +16,13 @@ export default async function handler(req, res) {
 
     try {
         // Fetch the JSON file
-        const response = await fetch(JSON_URL);
-        const json = await response.json();
-        
-        if (!Array.isArray(json) || json.length === 0) {
+const response = await fetch(JSON_URL);
+const result = await response.json();
+
+// Extract the data array
+const json = result.data || [];
+
+if (!Array.isArray(json) || json.length === 0) {
             console.log("JSON is empty or invalid");
             return res.status(200).json({ status: "empty" });
         }
