@@ -37,10 +37,11 @@ export default async function handler(req, res) {
 async function checkForNewEntry() {
     // Fetch the JSON file
     let json;
-    try {
-        const response = await fetch(JSON_URL);
-        json = await response.json();
-    } catch (err) {
+try {
+    const response = await fetch(JSON_URL);
+    const result = await response.json();
+    json = result.data || [];
+} catch (err) {
         await sendMsg(ALLOWED_USER_ID, "❌ Error fetching JSON URL: " + err.message);
         return;
     }
